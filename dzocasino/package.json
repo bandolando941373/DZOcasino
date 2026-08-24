@@ -5,15 +5,27 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "start": "npx tsx server/websocket/server.ts",
+    "start": "npx tsx server/websocket/websocketserver.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@discord/embedded-app-sdk": "^1.1.0",
     "@prisma/client": "^5.22.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "phaser": "^3.80.1",
     "prisma": "^5.22.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "tsx": "^4.7.1",
     "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.0"
   }
 }
