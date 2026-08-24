@@ -1,0 +1,81 @@
+import React, { useState } from 'react';
+
+interface Props {
+  currentUserId: string;
+}
+
+export const AdminExchangePanel: React.FC<Props> = ({ currentUserId }) => {
+  const [targetId, setTargetId] = useState('');
+  const [dzoAmount, setDzoAmount] = useState('');
+  const [status, setStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleTransaction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setStatus(null);
+
+    try {
+      const res = await fetch('/api/admin/credit-chips', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-discord-userid': currentUserId,
+        },
+        body: JSON.stringify({
+          targetUserId: targetId,
+          dzoAmount: parseFloat(dzoAmount),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Transaction failed');
+
+      setStatus(`Success! Transferred ${data.newBalance} Chips to ${targetId}`);
+      setTargetId('');
+      setDzoAmount('');
+    } catch (err) {
+      setStatus(`Error: ${(err as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="admin-panel-overlay">
+      <h2>DZO to Chips Banker Exchange</h2>
+      <form onSubmit={handleTransaction}>
+        <label>Discord User ID</label>
+        <input
+          className="admin-input"
+          type="text"
+          placeholder="e.g. 184567890123456789"
+          value={targetId}
+          onChange={(e) => setTargetId(e.target.value)}
+          required
+        />
+
+        <label>DZO Amount Received</label>
+        <input
+          className="admin-input"
+          type="number"
+          step="0.01"
+          placeholder="0.00"
+          value={dzoAmount}
+          onChange={(e) => setDzoAmount(e.target.value)}
+          required
+        />
+
+        <button className="admin-btn" type="submit" disabled={loading}>
+          {loading ? 'Processing...' : 'Execute Credit Transfer'}
+        </button>
+      </form>
+
+      {status && (
+        <p style={{ marginTop: '12px', color: status.startsWith('Error') ? '#f23f43' : '#23a55a' }}>
+          {status}
+        </p>
+      )}
+    </div>
+  );
+};

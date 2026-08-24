@@ -1,0 +1,69 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  BANKER
+  ADMIN
+}
+
+enum TransactionType {
+  DZO_DEPOSIT
+  DZO_WITHDRAWAL
+  ADMIN_ADJUSTMENT
+  GAME_WIN
+  GAME_LOSS
+}
+
+model User {
+  id            String         @id
+  username      String
+  discriminator String         @default("0")
+  avatar        String?
+  role          Role           @default(USER)
+  chipBalance   BigInt         @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  adminLogs     AdminLog[]     @relation("AdminExecutor")
+  targetLogs    AdminLog[]     @relation("AdminTarget")
+  transactions  LedgerEntry[]
+
+  @@index([role])
+}
+
+model AdminLog {
+  id             String          @id @default(uuid())
+  adminId        String
+  targetUserId   String
+  dzoAmount      Decimal         @db.Decimal(18, 4)
+  chipsExchanged BigInt
+  actionType     TransactionType
+  createdAt      DateTime        @default(now())
+
+  admin          User            @relation("AdminExecutor", fields: [adminId], references: [id])
+  targetUser     User            @relation("AdminTarget", fields: [targetUserId], references: [id])
+
+  @@index([adminId])
+  @@index([targetUserId])
+}
+
+model LedgerEntry {
+  id          String          @id @default(uuid())
+  userId      String
+  amountDelta BigInt
+  balanceAfter BigInt
+  type        TransactionType
+  referenceId String?
+  createdAt   DateTime        @default(now())
+
+  user        User            @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}

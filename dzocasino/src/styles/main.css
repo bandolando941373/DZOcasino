@@ -1,0 +1,72 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #0e1015;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'gg sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+#game-app {
+  position: relative;
+  width: 100vw;
+  height: 56.25vw;
+  max-height: 100vh;
+  max-width: 177.78vh;
+  box-shadow: 0 0 32px rgba(0, 0, 0, 0.85);
+  background: #000;
+}
+
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  touch-action: none;
+}
+
+.admin-panel-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 500px;
+  background: #2b2d31;
+  border-radius: 8px;
+  padding: 24px;
+  color: #f2f3f5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.admin-input {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0 16px 0;
+  background: #1e1f22;
+  border: 1px solid #383a40;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+.admin-btn {
+  width: 100%;
+  padding: 14px;
+  background: #5865f2;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.admin-btn:active {
+  background: #4752c4;
+}
