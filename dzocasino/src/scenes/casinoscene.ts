@@ -4,10 +4,13 @@ export class CasinoScene extends Phaser.Scene {
   private ws!: WebSocket;
   private isMobile: boolean = false;
   private userId: string;
+  private heartbeatInterval: number | null = null;
+
+  private readonly RENDER_WS_URL: string = 'wss://dzocasino.onrender.com';
 
   constructor(userId: string) {
     super({ key: 'CasinoScene' });
-    this.userId = userId;
+    this.userId = userId || 'Guest';
   }
 
   create(): void {
@@ -70,22 +73,67 @@ export class CasinoScene extends Phaser.Scene {
   }
 
   private initWebSocket(): void {
-    const wsUrl = import.meta.env.VITE_WEBSOCKET_URL || `wss://${window.location.host}`;
-    this.ws = new WebSocket(`${wsUrl}?roomId=holdem-1&userId=${this.userId}`);
+    const baseUrl = this.RENDER_WS_URL.includes('your-app-name') 
+      ? `wss://${window.location.host}` 
+      : this.RENDER_WS_URL;
+
+    const fullUrl = `${baseUrl}?roomId=holdem-1&userId=${encodeURIComponent(this.userId)}`;
     
-    this.ws.onmessage = (event) => {
-      const payload = JSON.parse(event.data);
-      this.handleServerState(payload);
+    console.log(`Connecting to WebSocket: ${fullUrl}`);
+    this.ws = new WebSocket(fullUrl);
+
+    this.ws.onopen = () => {
+      console.log('Successfully connected to Render WebSocket server!');
+      this.startHeartbeat();
     };
+
+    this.ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        this.handleServerState(payload);
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', event.data);
+      }
+    };
+
+    this.ws.onerror = (error) => {
+      console.error('WebSocket Error:', error);
+    };
+
+    this.ws.onclose = (event) => {
+      console.warn(`WebSocket closed (Code: ${event.code}). Retrying in 3 seconds...`);
+      this.stopHeartbeat();
+      this.time.delayedCall(3000, () => this.initWebSocket());
+    };
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatInterval = window.setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'PING' }));
+      }
+    }, 25000);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval !== null) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
   }
 
   private sendAction(actionType: string): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: actionType, amount: '100' }));
+      const payload = { type: actionType, amount: '100' };
+      this.ws.send(JSON.stringify(payload));
+      console.log('Sent action:', payload);
+    } else {
+      console.warn('Cannot send action: WebSocket is not open.');
     }
   }
 
   private handleServerState(data: any): void {
-    console.log('Server Event:', data);
+    console.log('Server Event Received:', data);
   }
 }
