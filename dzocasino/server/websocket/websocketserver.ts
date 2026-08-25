@@ -1,117 +1,74 @@
-import { WebSocket, WebSocketServer } from 'ws';
-import { createServer, IncomingMessage } from 'http';
-import { parse } from 'url';
+import express from 'express';
+import { createServer } from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
+import path from 'path';
 
-export interface GamePlayer {
-  userId: string;
-  ws: WebSocket;
-  seatIndex: number;
-  chips: bigint;
-}
+class RoomManager {
+  private rooms: Map<string, Set<WebSocket>> = new Map();
 
-export abstract class BaseRoom {
-  public id: string;
-  public players: Map<string, GamePlayer> = new Map();
-  public maxPlayers: number = 4;
+  public handleConnection(ws: WebSocket, req: any): void {
+    const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
+    const roomId = urlParams.get('roomId') || 'default';
+    const userId = urlParams.get('userId') || 'anonymous';
 
-  constructor(id: string, maxPlayers: number = 4) {
-    this.id = id;
-    this.maxPlayers = maxPlayers;
-  }
-
-  public addPlayer(userId: string, ws: WebSocket, chips: bigint): boolean {
-    if (this.players.size >= this.maxPlayers || this.players.has(userId)) {
-      return false;
-    }
-    const availableSeats = [0, 1, 2, 3].filter(
-      (seat) => !Array.from(this.players.values()).some((p) => p.seatIndex === seat)
-    );
-    
-    this.players.set(userId, { userId, ws, seatIndex: availableSeats[0], chips });
-    this.broadcast({ type: 'PLAYER_JOINED', userId, seatIndex: availableSeats[0] });
-    return true;
-  }
-
-  public removePlayer(userId: string): void {
-    if (this.players.has(userId)) {
-      this.players.delete(userId);
-      this.broadcast({ type: 'PLAYER_LEFT', userId });
-    }
-  }
-
-  public broadcast(payload: object, excludeUserId?: string): void {
-    const data = JSON.stringify(payload);
-    this.players.forEach((player) => {
-      if (player.userId !== excludeUserId && player.ws.readyState === WebSocket.OPEN) {
-        player.ws.send(data);
-      }
-    });
-  }
-
-  abstract handleAction(userId: string, action: any): void;
-}
-
-export class RoomManager {
-  private rooms: Map<string, BaseRoom> = new Map();
-
-  public registerRoom(room: BaseRoom): void {
-    this.rooms.set(room.id, room);
-  }
-
-  public handleConnection(ws: WebSocket, req: IncomingMessage): void {
-    const { query } = parse(req.url || '', true);
-    const roomId = query.roomId as string;
-    const userId = query.userId as string;
-
-    if (!roomId || !userId) {
-      ws.close(1008, 'Params missing');
-      return;
+    if (!this.rooms.has(roomId)) {
+      this.rooms.set(roomId, new Set());
     }
 
-    let room = this.rooms.get(roomId);
-    if (!room) {
-      ws.close(1004, 'Room not found');
-      return;
-    }
+    const room = this.rooms.get(roomId)!;
+    room.add(ws);
 
-    const joined = room.addPlayer(userId, ws, BigInt(0));
-    if (!joined) {
-      ws.close(1013, 'Room full or already in room');
-      return;
-    }
+    console.log(`User ${userId} connected to room: ${roomId}`);
 
-    ws.on('message', (data: string) => {
+    ws.on('message', (message: string) => {
       try {
-        const message = JSON.parse(data.toString());
-        room?.handleAction(userId, message);
+        const parsed = JSON.parse(message);
+        if (parsed.type === 'PING') {
+          ws.send(JSON.stringify({ type: 'PONG' }));
+          return;
+        }
+        
+        // Broadcast incoming actions to all room participants
+        this.broadcastToRoom(roomId, message, ws);
       } catch (err) {
-        ws.send(JSON.stringify({ type: 'ERROR', message: 'Malformed JSON payload' }));
+        console.error('Failed to parse WebSocket message:', err);
       }
     });
 
     ws.on('close', () => {
-      room?.removePlayer(userId);
-      if (room?.players.size === 0) {
+      room.delete(ws);
+      if (room.size === 0) {
         this.rooms.delete(roomId);
+      }
+      console.log(`User ${userId} disconnected from room: ${roomId}`);
+    });
+  }
+
+  private broadcastToRoom(roomId: string, message: string, sender: WebSocket): void {
+    const room = this.rooms.get(roomId);
+    if (!room) return;
+
+    room.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
       }
     });
   }
 }
 
+const app = express();
 const PORT = Number(process.env.PORT) || 10000;
 
-// Create HTTP server for Render health checks and port binding
-const server = createServer((req, res) => {
-  if (req.url === '/health' || req.url === '/') {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('OK');
-  } else {
-    res.writeHead(404);
-    res.end();
-  }
+// Serve static frontend build files from dist directory
+const distPath = path.join(process.cwd(), 'dist');
+app.use(express.static(distPath));
+
+// Fallback to index.html for application routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// Initialize WebSocket server attached to HTTP server
+const server = createServer(app);
 const wss = new WebSocketServer({ server });
 const roomManager = new RoomManager();
 
@@ -120,5 +77,5 @@ wss.on('connection', (ws, req) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`WebSocket server is running on port ${PORT}`);
+  console.log(`Server and WebSockets running on port ${PORT}`);
 });
